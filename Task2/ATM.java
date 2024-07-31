@@ -1,9 +1,10 @@
+import java.io.FileWriter;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Scanner;
 
 public class ATM {
     static Connection con = null;
@@ -90,7 +91,7 @@ public class ATM {
         	stmt.setInt(2, userAcc);
             int rc = stmt.executeUpdate();
             if (rc > 0) {
-                updateBook(action, amount, null);
+                updateBook(action, amount);
                 System.out.println("お引出しに完了しました");
             }
         } catch (ClassNotFoundException e) {
@@ -121,7 +122,7 @@ public class ATM {
         	stmt.setInt(2, userAcc);
             int rc = stmt.executeUpdate();
             if (rc > 0) {
-                updateBook(action, amount, null);
+                updateBook(action, amount);
                 System.out.println("お預入れに完了しました");
             }
         } catch (ClassNotFoundException e) {
@@ -155,7 +156,7 @@ public class ATM {
             int rc = stmt.executeUpdate();
             if (rc > 0) {
                 updateBook(action, amount, payee);
-                System.out.println("お引出に完了しました");
+                System.out.println("お振込に完了しました");
             }
         } catch (ClassNotFoundException e) {
             System.out.println("JDBCドライバのロードでエラーが発生しました");
@@ -177,15 +178,11 @@ public class ATM {
         int newPIN = new java.util.Scanner(System.in).nextInt();
 
         try {
-            // JDBCドライバのロード
             Class.forName("com.mysql.cj.jdbc.Driver");
-            // データベース接続
             con = DriverManager.getConnection("jdbc:mysql://localhost:3306/test_db?serverTimezone=Asia/Tokyo", "root", "");
-            // SQL実行準備
             stmt = con.prepareStatement(sql);
         	stmt.setInt(1, newPIN);
         	stmt.setInt(2, userAcc);
-            // 実行結果取得
         	int rc = stmt.executeUpdate();
             if (rc > 0) {
                 System.out.println("変更に成功しました");
@@ -205,7 +202,7 @@ public class ATM {
             }
         }
     };
-    public static void updateBook(String action, int amount, Integer recepient) {
+    public static void updateBook(String action, int amount, Integer recipient) {
         String sql = "INSERT INTO bankbook(action, amount, recipient) VALUES(?, ?, ?)";
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
@@ -214,11 +211,8 @@ public class ATM {
             stmt = con.prepareStatement(sql);
         	stmt.setString(1, action);
         	stmt.setInt(2, amount);
-            stmt.setInt(3, recepient);
+            stmt.setInt(3, recipient);
             stmt.executeUpdate();
-        	// int rc = stmt.executeUpdate();
-            // if (rc > 0) {
-            // }
 
         } catch (ClassNotFoundException e) {
             System.out.println("JDBCドライバのロードでエラーが発生しました");
@@ -234,7 +228,67 @@ public class ATM {
             }
         }
     };
-    public static void menuATM(int userAcc) {
+    public static void updateBook(String action, int amount) {
+        String sql = "INSERT INTO bankbook(action, amount, recipient) VALUES(?, ?, null)";
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            con = DriverManager.getConnection("jdbc:mysql://localhost:3306/test_db?serverTimezone=Asia/Tokyo", "root", "");
+            
+            stmt = con.prepareStatement(sql);
+        	stmt.setString(1, action);
+        	stmt.setInt(2, amount);
+            stmt.executeUpdate();
+
+        } catch (ClassNotFoundException e) {
+            System.out.println("JDBCドライバのロードでエラーが発生しました");
+        } catch (SQLException e) {
+            System.out.println("ATMにエラーが発生しました。");
+        } finally {
+            try {
+                if (con != null) {
+                    con.close();
+                }
+            } catch (SQLException e) {
+                System.out.println("ATMにエラーが発生しました。");
+            }
+        }
+    };
+    public static void outputBookInfo() throws IOException {
+        String sql = "SELECT * FROM bankbook";
+        FileWriter fw = new FileWriter(".\\BankBook.txt");
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+            con = DriverManager.getConnection("jdbc:mysql://localhost:3306/test_db?serverTimezone=Asia/Tokyo","root","");
+            stmt = con.prepareStatement(sql);
+            rs = stmt.executeQuery();
+
+            while(rs.next()){
+                String action = rs.getString("action");
+                int amount = rs.getInt("amount");
+                Integer recipient = rs.getInt("recipient");
+                    if (recipient != 0) {
+                        fw.write("[類別]：" + action + "　[金額]：" + amount + "　[振込先]：" + recipient + "\n");
+                    } else {
+                        fw.write("[類別]：" + action + "　[金額]：" + amount + "　[振込先]：\t \n");
+                    }
+            }
+            fw.close();
+            System.out.println("通帳記入に成功しました");
+        } catch (ClassNotFoundException e) {
+            System.out.println("JDBCドライバのロードでエラーが発生しました。");
+        } catch (SQLException e) {
+            System.out.println("ATMにエラーが発生しました。");
+        } finally {
+            try {
+                if (con != null) {
+                    con.close();
+                }
+            } catch (SQLException e) {
+                System.out.println("ATMにエラーが発生しました。");
+            }
+        }
+    };
+    public static void menuATM(int userAcc) throws IOException {
         boolean prog = true;
 
         while (prog == true) {
@@ -276,8 +330,11 @@ public class ATM {
                 break;
             }
             case 6:
+                System.out.println("通帳記入が行われます");
+                outputBookInfo();
                 break;
             case 7:
+                System.out.println("ご利用いただきありがとうございました。");
                 prog = false;
                 break;
             default:
@@ -286,11 +343,10 @@ public class ATM {
             }
         }
     }
-    public static void startATM() {
-        Scanner scan = new Scanner(System.in);
+    public static void startATM() throws IOException {
         System.out.println("～ATMへようこそ～");
-        int bankAcc = 0; //to 10 char
-        int accPIN; //to 4 char
+        int bankAcc = 0; //10 char
+        int accPIN; //4 char
         boolean isLogged = false;
         while (!isLogged) {
             System.out.println("口座確認が行われます \n口座番号と暗証番号を入力してください");
@@ -302,7 +358,7 @@ public class ATM {
         }
         menuATM(bankAcc);
     }
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         startATM();
     }
 }
